@@ -15,6 +15,12 @@ def variance_of_laplacian(image):
 	# measure, which is simply the variance of the Laplacian
 	return cv2.Laplacian(image, cv2.CV_64F).var()
 
+def hconcat_resize_min(im_list, interpolation=cv2.INTER_CUBIC):
+	h_min = min(im.shape[0] for im in im_list)
+	im_list_resize = [cv2.resize(im, (int(im.shape[1] * h_min / im.shape[0]), h_min), interpolation=interpolation)
+		for im in im_list]
+	return cv2.hconcat(im_list_resize)
+
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
 ap.add_argument("-d", "--dev", required=True,
@@ -36,6 +42,15 @@ cap.set(5,60)
 cap.set(15, 0.1)
 bins = args['bins']
 resizeWidth = args['width']
+
+# Create a black image
+img = np.zeros((720,720,3), np.uint8)
+
+# Draw a blue line with thickness of 5 px
+cv2.line(img,(15,20),(15,20),(255,0,0),5)
+
+#Display the image
+#cv2.imshow("img",img)
 
 
 while(True):
@@ -64,8 +79,12 @@ while(True):
 		cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 3)
 	print("{}: {:.2f}".format(text, fm))
 	#cv2.imshow("Image", image)
-	cv2.imshow("Frame", frame)
+	#cv2.imshow("Frame", frame)
 
+	#im_h = cv2.hconcat([img, frame])
+	im_h = hconcat_resize_min([img, frame])
+	cv2.imshow("Frame", im_h)
+	
 	if cv2.waitKey(1) & 0xFF == ord('q'):
 		break
 
