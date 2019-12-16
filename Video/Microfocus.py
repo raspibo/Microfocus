@@ -9,6 +9,20 @@ import argparse
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import serial
+import time
+import io
+
+scan=0
+val=0
+last_val=0
+last_fm=0.0
+scan_list=[]
+#Serial takes these two parameters: serial device and baudrate
+ser = serial.Serial('/dev/ttyUSB0', 115200)
+#ser.write(b'+')
+#data = ser.readline()
+#print(data)
 
 def variance_of_laplacian(image):
 	# compute the Laplacian of the image and then return the focus
@@ -47,13 +61,24 @@ resizeWidth = args['width']
 img = np.zeros((720,720,3), np.uint8)
 
 # Draw a blue line with thickness of 5 px
-cv2.line(img,(15,20),(15,20),(255,0,0),5)
+#cv2.line(img,(15,20),(15,20),(255,0,0),5)
 
 #Display the image
 #cv2.imshow("img",img)
 
 
 while(True):
+	if scan == 1:
+		b_val=str(val)
+		ser.write(str.encode(b_val))
+		ser.write(b'\r')
+		val=val+1
+		if val== 190 :
+			scan = 0
+			print("Scan end")
+			print("Best value: {}".format(max(scan_list)))
+			print("at value: {}".format(scan_list.index(max(scan_list))))
+		time.sleep(.2)
 	# load the image, convert it to grayscale, and compute the
 	# focus measure of the image using the Variance of Laplacian
 	# method
@@ -75,17 +100,41 @@ while(True):
 	# show the image
 	#cv2.putText(image, "{}: {:.2f}".format(text, fm), (10, 30),
 	#	cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 3)
-	cv2.putText(frame, "{}: {:.2f}".format(text, fm), (10, 30),
+	cv2.putText(frame, "{}: {:.2f} - val: {}".format(text, fm, val), (10, 30),
 		cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 3)
-	print("{}: {:.2f}".format(text, fm))
+	#print("{}: {:.2f}".format(text, fm))
 	#cv2.imshow("Image", image)
 	#cv2.imshow("Frame", frame)
+
+	# Draw a point with val and fm on graph
+	if scan == 1:
+		scan_list.append(fm)
+		cv2.line(img,(last_val*3,int(last_fm)),(val*3,int(fm)),(255,255,255),3)
+		last_val=val
+		last_fm=fm
+		cv2.rectangle(img,(5,5),(250,50),(0,0,0),-15)
+		cv2.putText(img, "val: {} {:.2f}".format(val, fm), (10, 30),
+			cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 3)
 
 	#im_h = cv2.hconcat([img, frame])
 	im_h = hconcat_resize_min([img, frame])
 	cv2.imshow("Frame", im_h)
-	
-	if cv2.waitKey(1) & 0xFF == ord('q'):
+
+	key=cv2.waitKey(5) & 0xFF
+	if key == ord('+'):
+		ser.write(b'+')
+		val=val+1
+	if key == ord('-'):
+		ser.write(b'-')
+		val=val-1
+	if key == ord('s'):
+		val=0
+		print("Scan start\r")
+		cv2.destroyWindow("img"); 
+		cv2.destroyWindow("im_h"); 
+		img = np.zeros((720,720,3), np.uint8)
+		scan=1
+	if key == ord('q'):
 		break
 
 # When everything done, release the capture
