@@ -1,5 +1,6 @@
+#!/usr/bin/python3
 # USAGE
-# python Microfocus.py 
+# python3 Microfocus.py 
 # Detect blurry video, and print a value of blur calculatd by variance of laplacian
 
 # import the necessary packages
@@ -19,7 +20,7 @@ last_val=0
 last_fm=0.0
 scan_list=[]
 #Serial takes these two parameters: serial device and baudrate
-ser = serial.Serial('/dev/ttyUSB0', 115200)
+#ser = serial.Serial('/dev/ttyUSB0', 115200)
 #ser.write(b'+')
 #data = ser.readline()
 #print(data)
@@ -35,30 +36,64 @@ def hconcat_resize_min(im_list, interpolation=cv2.INTER_CUBIC):
 		for im in im_list]
 	return cv2.hconcat(im_list_resize)
 
+
 # construct the argument parse and parse the arguments
-ap = argparse.ArgumentParser()
-ap.add_argument("-d", "--dev", required=True,
-	help="video device number X es /dev/videoX")
+ap = argparse.ArgumentParser(description='A simple and low cost kit for microscope focus. Thi is a opencv/python utility. You can use some keys inside app: +, -, s, q.')
+
+ap.add_argument("-c", "--cap", type=int, default=0,
+        help="Set to 1 to print a property in the VideoCapture (opencv https://docs.opencv.org/2.4/modules/highgui/doc/reading_and_writing_images_and_video.html)")
+ap.add_argument("-d", "--dev", default=0,
+        help="video device number X es /dev/videoX default 0")
+ap.add_argument("-p", "--port", default='ttyUSB0',
+        help="serial device es /dev/XXXXXX where XXXXXX es ttyUSB0 (default)")
 ap.add_argument("-t", "--threshold", type=float, default=100.0,
-	help="focus measures that fall below this value will be considered 'blurry'")
+        help="focus measures that fall below this value will be considered 'blurry'")
 ap.add_argument('-b', '--bins', type=int, default=16,
-	help='Number of bins per channel (default 16)')
-ap.add_argument('-w', '--width', type=int, default=0,
-	help='Resize video to specified width in pixels (maintains aspect)')
+        help='Number of bins per channel (default 16)')
+ap.add_argument('-g', '--geom',type=str,default='1280x720',
+        help='Resize video to specified width in pixels (maintains aspect)')
+ap.add_argument('-s', '--scan', type=int, default=0,
+        help='set to 1 to start with focus scan. Check for a max extension of slider!')
 args = vars(ap.parse_args())
 
+#Serial takes these two parameters: serial device and baudrate
+ser = serial.Serial('/dev/' + args['port'] , 115200)
+
 dev=int(args["dev"])
-print(dev)
+print("Video device {}".format(dev))
+print("Serial device {}".format(ser))
+
 cap = cv2.VideoCapture(dev)
-cap.set(3,1024)
-cap.set(4,768)
-cap.set(5,60)
-cap.set(15, 0.1)
+captureproprities=["CV_CAP_PROP_POS_MSEC", "CV_CAP_PROP_POS_FRAMES", "CV_CAP_PROP_POS_AVI_RATIO", "CV_CAP_PROP_FRAME_WIDTH", "CV_CAP_PROP_FRAME_HEIGHT", "CV_CAP_PROP_FPS", "CV_CAP_PROP_FOURCC", "CV_CAP_PROP_FRAME_COUNT", "CV_CAP_PROP_FORMAT", "CV_CAP_PROP_MODE", "CV_CAP_PROP_BRIGHTNESS", "CV_CAP_PROP_CONTRAST", "CV_CAP_PROP_SATURATION", "CV_CAP_PROP_HUE", "CV_CAP_PROP_GAIN", "CV_CAP_PROP_EXPOSURE", "CV_CAP_PROP_CONVERT_RGB", "CV_CAP_PROP_WHITE_BALANCE_U", "CV_CAP_PROP_WHITE_BALANCE_V", "CV_CAP_PROP_RECTIFICATION", "CV_CAP_PROP_ISO_SPEED", "CV_CAP_PROP_BUFFERSIZE"]
+
+if args['cap'] == 1 :
+	print("Default cap property of camera:")
+	for x in range(22):
+		print(str(x) + ") " + captureproprities[x] + ": \t " + str(cap.get(x)))
+
+#params from https://docs.opencv.org/2.4/modules/highgui/doc/reading_and_writing_images_and_video.html
+#CV_CAP_PROP_FRAME_WIDTH
+width=int(args["geom"].split('x',1)[0])
+cap.set(3,width)	
+#CV_CAP_PROP_FRAME_HEIGHT
+height=int(args["geom"].split('x',1)[1])
+cap.set(4,height)
+#CV_CAP_PROP_FPS
+cap.set(5,30)
+#CAP_PROP_EXPOSURE 
+cap.set(15, 0.75)
+#CV_CAP_PROP_ISO_SPEED
+cap.set(20, 1.0)
 bins = args['bins']
-resizeWidth = args['width']
+
+
+if args['cap'] == 1 :
+	print("Current cap property of camera:")
+	for x in range(22):
+		print(str(x) + ") " + captureproprities[x] + ": \t " + str(cap.get(x)))
 
 # Create a black image
-img = np.zeros((720,720,3), np.uint8)
+img = np.zeros((width,width,3), np.uint8)
 
 # Draw a blue line with thickness of 5 px
 #cv2.line(img,(15,20),(15,20),(255,0,0),5)
@@ -127,12 +162,13 @@ while(True):
 	if key == ord('-'):
 		ser.write(b'-')
 		val=val-1
-	if key == ord('s'):
+	if key == ord('s') or args['scan'] == 1 :
+		args['scan']=0
 		val=0
 		print("Scan start\r")
 		cv2.destroyWindow("img"); 
 		cv2.destroyWindow("im_h"); 
-		img = np.zeros((720,720,3), np.uint8)
+		img = np.zeros((width,width,3), np.uint8)
 		scan=1
 	if key == ord('q'):
 		break
