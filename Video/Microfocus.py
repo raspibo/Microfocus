@@ -101,6 +101,7 @@ img = np.zeros((width,width,3), np.uint8)
 #Display the image
 #cv2.imshow("img",img)
 
+graph = cv2.CreateImage((800,600), 1, 1)
 
 while(True):
 	if scan == 1:
