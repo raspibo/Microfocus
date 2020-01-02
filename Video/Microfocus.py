@@ -37,6 +37,7 @@ cap.set(15, 0.1)
 bins = args['bins']
 resizeWidth = args['width']
 
+graph = cv2.CreateImage((800,600), 1, 1)
 
 while(True):
 	# load the image, convert it to grayscale, and compute the
@@ -65,6 +66,7 @@ while(True):
 	print("{}: {:.2f}".format(text, fm))
 	#cv2.imshow("Image", image)
 	cv2.imshow("Frame", frame)
+	graph.imshow()
 
 	if cv2.waitKey(1) & 0xFF == ord('q'):
 		break
