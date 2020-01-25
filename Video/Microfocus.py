@@ -19,11 +19,14 @@ val=0
 last_val=0
 last_fm=0.0
 scan_list=[]
-#Serial takes these two parameters: serial device and baudrate
-#ser = serial.Serial('/dev/ttyUSB0', 115200)
-#ser.write(b'+')
-#data = ser.readline()
-#print(data)
+
+# initialize weight for running average
+aWeight = 0.5
+# initialize num of frames
+num_frames = 0
+# global variables
+bg = None
+ 
 
 def variance_of_laplacian(image):
 	# compute the Laplacian of the image and then return the focus
@@ -35,6 +38,41 @@ def hconcat_resize_min(im_list, interpolation=cv2.INTER_CUBIC):
 	im_list_resize = [cv2.resize(im, (int(im.shape[1] * h_min / im.shape[0]), h_min), interpolation=interpolation)
 		for im in im_list]
 	return cv2.hconcat(im_list_resize)
+
+#--------------------------------------------------
+# To find the running average over the background
+#--------------------------------------------------
+def run_avg(image, aWeight):
+	global bg
+	# initialize the background
+	if bg is None:
+		bg = image.copy().astype("float")
+		return
+
+	# compute weighted average, accumulate it and update the background
+	cv2.accumulateWeighted(image, bg, aWeight)
+
+#---------------------------------------------
+# To segment the region of hand in the image
+#---------------------------------------------
+def segment(image, threshold=25):
+	global bg
+	# find the absolute difference between background and current frame
+	diff = cv2.absdiff(bg.astype("uint8"), image)
+
+	# threshold the diff image so that we get the foreground
+	thresholded = cv2.threshold(diff, threshold, 255, cv2.THRESH_BINARY)[1]
+
+	# get the contours in the thresholded image
+	(cnts, _) = cv2.findContours(thresholded.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+	# return None, if no contours detected
+	if len(cnts) == 0:
+		return
+	else:
+		# based on contour area, get the maximum contour which is the hand
+		segmented = max(cnts, key=cv2.contourArea)
+		return (thresholded, segmented)
 
 
 # construct the argument parse and parse the arguments
@@ -57,7 +95,7 @@ ap.add_argument('-s', '--scan', type=int, default=0,
 args = vars(ap.parse_args())
 
 #Serial takes these two parameters: serial device and baudrate
-ser = serial.Serial('/dev/' + args['port'] , 115200)
+ser = serial.Serial('/dev/' + args['port'] , 115200, dsrdtr = False)
 
 dev=int(args["dev"])
 print("Video device {}".format(dev))
@@ -155,6 +193,31 @@ while(True):
 	im_h = hconcat_resize_min([img, frame])
 	cv2.imshow("Frame", im_h)
 
+	# clone the frame
+	clone = frame.copy()
+
+        # to get the background, keep looking till a threshold is reached
+        # so that our running average model gets calibrated
+	if num_frames < 300:
+		run_avg(gray, aWeight)
+	else:
+		# segment the hand region
+		hand = segment(gray)
+
+		# check whether hand region is segmented
+		if hand is not None:
+			# if yes, unpack the thresholded image and
+			# segmented region
+			(thresholded, segmented) = hand
+			# draw the segmented region and display the frame
+			cv2.drawContours(clone, [segmented], -1, (0, 0, 255),3)
+			cv2.imshow("Thesholded", thresholded)
+			#cv2.imshow("Contour diff", clone)
+
+
+	# increment the number of frames
+	num_frames += 1
+
 	key=cv2.waitKey(5) & 0xFF
 	if key == ord('+'):
 		ser.write(b'+')
@@ -162,6 +225,10 @@ while(True):
 	if key == ord('-'):
 		ser.write(b'-')
 		val=val-1
+	if key == ord('d'):
+		cv2.destroyWindow("clone"); 
+		bg = None
+		num_frames = 0
 	if key == ord('s') or args['scan'] == 1 :
 		args['scan']=0
 		val=0
