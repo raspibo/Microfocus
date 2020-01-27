@@ -15,8 +15,8 @@ import time
 import io
 
 scan=0
-val=0
-last_val=0
+position=0
+last_position=0
 last_fm=0.0
 scan_list=[]
 
@@ -95,7 +95,8 @@ ap.add_argument('-s', '--scan', type=int, default=0,
 args = vars(ap.parse_args())
 
 #Serial takes these two parameters: serial device and baudrate
-ser = serial.Serial('/dev/' + args['port'] , 115200, dsrdtr = False)
+#ser = serial.Serial('/dev/' + args['port'] , 115200, dsrdtr = False)
+ser = serial.Serial('/dev/' + args['port'] , 115200, dsrdtr = True)
 
 dev=int(args["dev"])
 print("Video device {}".format(dev))
@@ -139,19 +140,23 @@ img = np.zeros((width,width,3), np.uint8)
 #Display the image
 #cv2.imshow("img",img)
 
-graph = cv2.CreateImage((800,600), 1, 1)
+#graph = cv2.CreateImage((800,600), 1, 1)
 
 while(True):
 	if scan == 1:
-		b_val=str(val)
-		ser.write(str.encode(b_val))
+		b_position=str(position)
+		ser.write(str.encode(b_position))
 		ser.write(b'\r')
-		val=val+1
-		if val== 190 :
+		position=position+1
+		if position== 10 :
+			cv2.destroyWindow("img"); 
+			cv2.destroyWindow("im_h"); 
+			img = np.zeros((width,width,3), np.uint8)
+		if position== 190 :
 			scan = 0
 			print("Scan end")
 			print("Best value: {}".format(max(scan_list)))
-			print("at value: {}".format(scan_list.index(max(scan_list))))
+			print("at position: {}".format(scan_list.index(max(scan_list))))
 		time.sleep(.2)
 	# load the image, convert it to grayscale, and compute the
 	# focus measure of the image using the Variance of Laplacian
@@ -174,20 +179,20 @@ while(True):
 	# show the image
 	#cv2.putText(image, "{}: {:.2f}".format(text, fm), (10, 30),
 	#	cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 3)
-	cv2.putText(frame, "{}: {:.2f} - val: {}".format(text, fm, val), (10, 30),
+	cv2.putText(frame, "{}: {:.2f} - position: {}".format(text, fm, position), (10, 30),
 		cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 3)
 	#print("{}: {:.2f}".format(text, fm))
 	#cv2.imshow("Image", image)
 	#cv2.imshow("Frame", frame)
 
-	# Draw a point with val and fm on graph
+	# Draw a point with position and fm on graph
 	if scan == 1:
 		scan_list.append(fm)
-		cv2.line(img,(last_val*3,int(last_fm)),(val*3,int(fm)),(255,255,255),3)
-		last_val=val
+		cv2.line(img,(last_position*3,int(last_fm)),(position*3,int(fm)),(255,255,255),3)
+		last_position=position
 		last_fm=fm
 		cv2.rectangle(img,(5,5),(250,50),(0,0,0),-15)
-		cv2.putText(img, "val: {} {:.2f}".format(val, fm), (10, 30),
+		cv2.putText(img, "position: {} {:.2f}".format(position, fm), (10, 30),
 			cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 3)
 
 	#im_h = cv2.hconcat([img, frame])
@@ -199,7 +204,7 @@ while(True):
 
         # to get the background, keep looking till a threshold is reached
         # so that our running average model gets calibrated
-	if num_frames < 300:
+	if num_frames < 30:
 		run_avg(gray, aWeight)
 	else:
 		# segment the hand region
@@ -222,22 +227,20 @@ while(True):
 	key=cv2.waitKey(5) & 0xFF
 	if key == ord('+'):
 		ser.write(b'+')
-		val=val+1
+		position=position+1
 	if key == ord('-'):
 		ser.write(b'-')
-		val=val-1
+		position=position-1
 	if key == ord('d'):
 		cv2.destroyWindow("clone"); 
 		bg = None
 		num_frames = 0
 	if key == ord('s') or args['scan'] == 1 :
 		args['scan']=0
-		val=0
+		position=0
 		print("Scan start\r")
-		cv2.destroyWindow("img"); 
-		cv2.destroyWindow("im_h"); 
-		img = np.zeros((width,width,3), np.uint8)
 		scan=1
+		scan_list=[]
 	if key == ord('q'):
 		break
 
